@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ecommerce-project
+    env: node
+    buildCommand: npm install
+    startCommand: node src/server.js
+    rootDir: .
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
