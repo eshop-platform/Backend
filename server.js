@@ -3,7 +3,10 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db'); // Import the connection function
 const authRoutes = require('./routes/authRoutes');
-
+const productRoutes = require('./routes/productRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 // Initialize Express
 const app = express();
 
@@ -16,7 +19,10 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
-
+app.use('/api/products', productRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/categories', categoryRoutes);
 // Global Error Handler (Production Best Practice)
 app.use((err, req, res, next) => {
   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
