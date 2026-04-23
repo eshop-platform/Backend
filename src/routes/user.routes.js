@@ -1,5 +1,11 @@
-import express from "express";
+const express = require("express");
+const { getAllUsers, banUser, unbanUser, deleteUser } = require("../controllers/user.controller");
 
 const router = express.Router();
 
-export default router;
+router.get("/", getAllUsers);
+router.patch("/:id/ban", banUser);
+router.patch("/:id/unban", unbanUser);
+router.delete("/:id", deleteUser);
+
+module.exports = router;
