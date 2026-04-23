@@ -1,5 +1,12 @@
 const mongoose = require("mongoose");
 
+const reviewSchema = new mongoose.Schema({
+  author: { type: String, required: true },
+  rating: { type: Number, required: true, min: 1, max: 5 },
+  title: { type: String, default: "" },
+  body: { type: String, default: "" },
+}, { timestamps: true });
+
 const productSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -8,7 +15,7 @@ const productSchema = new mongoose.Schema({
   },
   description: {
     type: String,
-    required: true,
+    default: "",
   },
   price: {
     type: Number,
@@ -36,10 +43,28 @@ const productSchema = new mongoose.Schema({
     enum: ["pending", "approved", "rejected"],
     default: "pending",
   },
+  // Primary image (URL)
   image: {
     type: String,
     default: "",
-  }
+  },
+  // Gallery images
+  images: [{ type: String }],
+  // Variants
+  colors: [{ type: String }],
+  sizes: [{ type: String }],
+  // Collection flags
+  isNew:       { type: Boolean, default: false },
+  onSale:      { type: Boolean, default: false },
+  bestSeller:  { type: Boolean, default: false },
+  gender:      { type: String, enum: ["men", "women", "unisex", ""], default: "" },
+  // Stats
+  rating:      { type: Number, default: 0 },
+  reviewCount: { type: Number, default: 0 },
+  tags:        [{ type: String }],
+  // Embedded reviews
+  reviews:     [reviewSchema],
 }, { timestamps: true });
 
 module.exports = mongoose.model("Product", productSchema);
+
