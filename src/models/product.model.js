@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const reviewSchema = new mongoose.Schema({
+  reviewerKey: { type: String, default: "" },
   author: { type: String, required: true },
   rating: { type: Number, required: true, min: 1, max: 5 },
   title: { type: String, default: "" },
@@ -36,7 +37,12 @@ const productSchema = new mongoose.Schema({
   seller: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
-    required: true,
+    default: null,
+  },
+  sellerSnapshot: {
+    name: { type: String, default: "" },
+    email: { type: String, default: "" },
+    brandName: { type: String, default: "" },
   },
   status: {
     type: String,
@@ -62,6 +68,7 @@ const productSchema = new mongoose.Schema({
   rating:      { type: Number, default: 0 },
   reviewCount: { type: Number, default: 0 },
   tags:        [{ type: String }],
+  aiSummary:   { type: String, default: "" },
   // Embedded reviews
   reviews:     [reviewSchema],
 }, { timestamps: true });
