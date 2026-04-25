@@ -68,14 +68,10 @@ const productSchema = new mongoose.Schema({
   rating:      { type: Number, default: 0 },
   reviewCount: { type: Number, default: 0 },
   tags:        [{ type: String }],
-<<<<<<< HEAD
   likes:       { type: Number, default: 0 },
-=======
   aiSummary:   { type: String, default: "" },
->>>>>>> eaa190191e9c5acb24a33802d88adb6be4c8fcff
   // Embedded reviews
   reviews:     [reviewSchema],
 }, { timestamps: true });
 
 module.exports = mongoose.model("Product", productSchema);
-

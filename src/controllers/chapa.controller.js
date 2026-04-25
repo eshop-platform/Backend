@@ -1,10 +1,6 @@
-<<<<<<< HEAD
-const axios = require("axios");
 const Purchase = require("../models/purchase.model");
 const Product = require("../models/product.model");
 
-=======
->>>>>>> eaa190191e9c5acb24a33802d88adb6be4c8fcff
 const CHAPA_BASE_URL = "https://api.chapa.co/v1";
 
 // POST /api/chapa/initialize
@@ -96,17 +92,10 @@ exports.initializePayment = async (req, res, next) => {
 
     res.status(200).json({ success: true, checkoutUrl });
   } catch (error) {
-<<<<<<< HEAD
-    console.error("Chapa Initialization Error:", error.response?.data || error.message);
-    const chapaMessage = error.response?.data?.message || error.message;
-    res.status(502).json({ success: false, message: `Chapa error: ${chapaMessage}` });
-=======
+    console.error("Chapa Initialization Error:", error.message);
     res.status(502).json({ success: false, message: `Chapa error: ${error.message}` });
->>>>>>> eaa190191e9c5acb24a33802d88adb6be4c8fcff
   }
 };
-
-
 
 // GET /api/chapa/verify/:txRef
 exports.verifyPayment = async (req, res, next) => {

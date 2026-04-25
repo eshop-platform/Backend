@@ -60,11 +60,14 @@ const mapProduct = (product) => {
       : product.categoryName || "";
 
   return {
-    id: product._id,
-    name: product.name,
+    _id: product._id,
+    id: product._id, // compatibility
+    title: product.title,
+    name: product.title, // compatibility
     image,
     images: product.images?.length ? product.images : image ? [image] : [],
-    category: categoryName,
+    category: product.category, // return populated object
+    categoryName: categoryName,
     price: product.price,
     description: product.description,
     stock: product.stock,
@@ -82,15 +85,15 @@ const mapProduct = (product) => {
     })),
     tags: product.tags ?? [],
     status: product.status,
-    sellerName: product.sellerSnapshot?.name || product.seller?.username || "",
-    sellerEmail: product.sellerSnapshot?.email || product.seller?.email || "",
-    brandName: product.sellerSnapshot?.brandName || "",
+    createdBy: product.createdBy,
+    sellerSnapshot: product.sellerSnapshot,
     submittedAt: product.createdAt,
     aiSummary: product.aiSummary || "",
-    isNew: Boolean(product.isNew),
+    isNew: Boolean(product.isNewCollection || product.isNew),
     onSale: Boolean(product.onSale),
     bestSeller: Boolean(product.bestSeller),
     gender: product.gender || "",
+    likes: product.likes || 0,
   };
 };
 
@@ -108,22 +111,14 @@ exports.getAllProducts = async (req, res, next) => {
     // Build the mongo filter
     const filter = {};
 
-<<<<<<< HEAD
-    // Status filter (admin use: pending / approved / rejected)
-    // If no status provided and not admin, default to approved
+    // Status filter
     if (status) {
       filter.status = status;
+    } else if (sellerEmail) {
+      filter["sellerSnapshot.email"] = sellerEmail.toLowerCase().trim();
     } else if (!req.user || req.user.role !== 'admin') {
       filter.status = 'approved';
     }
-=======
-    if (sellerEmail) {
-      filter["sellerSnapshot.email"] = sellerEmail.toLowerCase().trim();
-    }
-
-    if (status) filter.status = status;
-    else if (!sellerEmail) filter.status = "approved";
->>>>>>> eaa190191e9c5acb24a33802d88adb6be4c8fcff
 
     // Collection flags
     if (cat === "new")          filter.isNewCollection = true;
@@ -140,7 +135,7 @@ exports.getAllProducts = async (req, res, next) => {
     // Gender filter (explicit)
     if (gender) filter.gender = gender;
 
-    // Full-text-style search across name, description, tags
+    // Full-text-style search across title, description, tags
     if (q) {
       filter.$or = [
         { title:       { $regex: q, $options: "i" } },
@@ -158,7 +153,7 @@ exports.getAllProducts = async (req, res, next) => {
 
     const products = await Product.find(filter)
       .populate("category", "name")
-      .populate("createdBy", "username email")
+      .populate("createdBy", "username email role")
       .sort(sortObj);
 
     res.status(200).json({ success: true, count: products.length, data: products.map(mapProduct) });
@@ -172,7 +167,7 @@ exports.getProductById = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id)
       .populate("category", "name")
-      .populate("createdBy", "username email");
+      .populate("createdBy", "username email role");
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
@@ -182,60 +177,32 @@ exports.getProductById = async (req, res, next) => {
   }
 };
 
-// POST /api/products  — create a new product
+// POST /api/products  — create a new product (authenticated)
 exports.createProduct = async (req, res, next) => {
   try {
-<<<<<<< HEAD
     const isUserAdmin = req.user.role === "admin";
     const status = isUserAdmin ? "approved" : "pending";
+
+    const categoryDoc = await ensureCategory(req.body.category);
+    const image = req.file?.path || req.body.image || "";
     
-    console.log(`Saving product from ${req.user.role}:`, req.body.title);
-    
-    const product = await Product.create({ 
-      ...req.body, 
+    const product = await Product.create({
+      ...req.body,
+      title: req.body.title || req.body.name,
+      category: categoryDoc?._id || req.body.category,
       createdBy: req.user._id,
       status: status,
-      // Admin items can be auto-tagged as featured/new if desired
-      isNewCollection: isUserAdmin ? true : req.body.isNewCollection
-    });
-    
-    console.log("Product saved successfully:", product._id, "Status:", product.status);
-    res.status(201).json({ success: true, data: product });
-=======
-    const categoryDoc = await ensureCategory(req.body.category);
-    if (!categoryDoc) {
-      return res.status(400).json({ success: false, message: "Category is required" });
-    }
-
-    const image = req.file?.path || req.body.image || "";
-    const colors = parseList(req.body.colors);
-    const sizes = parseList(req.body.sizes);
-    const tags = parseList(req.body.tags);
-
-    const product = await Product.create({
-      name: req.body.name,
-      description: req.body.description || "",
-      price: Number(req.body.price),
-      stock: Number(req.body.stock ?? 0),
-      category: categoryDoc._id,
-      seller: req.user?._id ?? null,
-      sellerSnapshot: {
-        name: req.body.sellerName || req.user?.username || "",
-        email: (req.body.sellerEmail || req.user?.email || "").toLowerCase(),
-        brandName: req.body.brandName || "",
-      },
-      status: req.body.status || "pending",
       image,
-      images: image ? [image] : [],
-      colors,
-      sizes,
-      tags,
-      aiSummary: req.body.aiSummary || "",
+      images: req.body.images || (image ? [image] : []),
+      colors: parseList(req.body.colors),
+      sizes: parseList(req.body.sizes),
+      tags: parseList(req.body.tags),
+      isNewCollection: isUserAdmin ? true : req.body.isNewCollection
     });
 
     const populatedProduct = await Product.findById(product._id)
       .populate("category", "name")
-      .populate("seller", "username email");
+      .populate("createdBy", "username email role");
 
     res.status(201).json({ success: true, data: mapProduct(populatedProduct) });
   } catch (error) {
@@ -246,9 +213,10 @@ exports.createProduct = async (req, res, next) => {
 // POST /api/products/submit — public seller submission
 exports.submitProduct = async (req, res, next) => {
   try {
-    const { sellerName, sellerEmail, brandName, name, category, price, stock, description, aiSummary } = req.body;
+    const { sellerName, sellerEmail, brandName, title, name, category, price, stock, description, aiSummary } = req.body;
 
-    if (!sellerName || !sellerEmail || !brandName || !name || !category || !price) {
+    const productName = title || name;
+    if (!sellerName || !sellerEmail || !brandName || !productName || !category || !price) {
       return res.status(400).json({
         success: false,
         message: "Seller, brand, product name, category, and price are required.",
@@ -256,14 +224,14 @@ exports.submitProduct = async (req, res, next) => {
     }
 
     const categoryDoc = await ensureCategory(category);
-    const image = req.file?.path || "";
+    const image = req.file?.path || req.body.image || "";
 
     if (!image) {
       return res.status(400).json({ success: false, message: "A main product image is required." });
     }
 
     const product = await Product.create({
-      name,
+      title: productName,
       description: description || "",
       price: Number(price),
       stock: Number(stock ?? 0),
@@ -284,9 +252,7 @@ exports.submitProduct = async (req, res, next) => {
 
     const populatedProduct = await Product.findById(product._id).populate("category", "name");
     res.status(201).json({ success: true, data: mapProduct(populatedProduct) });
->>>>>>> eaa190191e9c5acb24a33802d88adb6be4c8fcff
   } catch (error) {
-    console.error("Error saving product:", error);
     next(error);
   }
 };
@@ -300,7 +266,7 @@ exports.updateProduct = async (req, res, next) => {
     }
     const populatedProduct = await Product.findById(product._id)
       .populate("category", "name")
-      .populate("seller", "username email");
+      .populate("createdBy", "username email role");
     res.status(200).json({ success: true, data: mapProduct(populatedProduct) });
   } catch (error) {
     next(error);
@@ -312,7 +278,7 @@ exports.approveProduct = async (req, res, next) => {
   try {
     const product = await Product.findByIdAndUpdate(req.params.id, { status: "approved" }, { new: true });
     if (!product) return res.status(404).json({ success: false, message: "Product not found" });
-    const populatedProduct = await Product.findById(product._id).populate("category", "name").populate("seller", "username email");
+    const populatedProduct = await Product.findById(product._id).populate("category", "name").populate("createdBy", "username email role");
     res.status(200).json({ success: true, data: mapProduct(populatedProduct) });
   } catch (error) {
     next(error);
@@ -324,7 +290,7 @@ exports.rejectProduct = async (req, res, next) => {
   try {
     const product = await Product.findByIdAndUpdate(req.params.id, { status: "rejected" }, { new: true });
     if (!product) return res.status(404).json({ success: false, message: "Product not found" });
-    const populatedProduct = await Product.findById(product._id).populate("category", "name").populate("seller", "username email");
+    const populatedProduct = await Product.findById(product._id).populate("category", "name").populate("createdBy", "username email role");
     res.status(200).json({ success: true, data: mapProduct(populatedProduct) });
   } catch (error) {
     next(error);
@@ -337,7 +303,7 @@ exports.updateStock = async (req, res, next) => {
     const { stock } = req.body;
     const product = await Product.findByIdAndUpdate(req.params.id, { stock }, { new: true });
     if (!product) return res.status(404).json({ success: false, message: "Product not found" });
-    const populatedProduct = await Product.findById(product._id).populate("category", "name").populate("seller", "username email");
+    const populatedProduct = await Product.findById(product._id).populate("category", "name").populate("createdBy", "username email role");
     res.status(200).json({ success: true, data: mapProduct(populatedProduct) });
   } catch (error) {
     next(error);
@@ -388,7 +354,7 @@ exports.addReview = async (req, res, next) => {
 
     const populatedProduct = await Product.findById(product._id)
       .populate("category", "name")
-      .populate("seller", "username email");
+      .populate("createdBy", "username email role");
 
     res.status(200).json({ success: true, data: mapProduct(populatedProduct) });
   } catch (error) {
@@ -406,4 +372,3 @@ exports.deleteProduct = async (req, res, next) => {
     next(error);
   }
 };
-
