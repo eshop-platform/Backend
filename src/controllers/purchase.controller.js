@@ -8,7 +8,7 @@ exports.getAllPurchases = async (req, res, next) => {
 
     const purchases = await Purchase.find(filter)
       .populate("buyer", "username email")
-      .populate("products.product", "name price image")
+      .populate("products.product", "title price image")
       .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: purchases.length, data: purchases });
   } catch (error) {

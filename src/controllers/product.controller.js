@@ -10,10 +10,15 @@ exports.getAllProducts = async (req, res, next) => {
     const filter = {};
 
     // Status filter (admin use: pending / approved / rejected)
-    if (status) filter.status = status;
+    // If no status provided and not admin, default to approved
+    if (status) {
+      filter.status = status;
+    } else if (!req.user || req.user.role !== 'admin') {
+      filter.status = 'approved';
+    }
 
     // Collection flags
-    if (cat === "new")          filter.isNew = true;
+    if (cat === "new")          filter.isNewCollection = true;
     else if (cat === "sale")    filter.onSale = true;
     else if (cat === "best-sellers") filter.bestSeller = true;
     else if (cat === "men")     filter.gender = "men";
@@ -30,7 +35,7 @@ exports.getAllProducts = async (req, res, next) => {
     // Full-text-style search across name, description, tags
     if (q) {
       filter.$or = [
-        { name:        { $regex: q, $options: "i" } },
+        { title:       { $regex: q, $options: "i" } },
         { description: { $regex: q, $options: "i" } },
         { tags:        { $regex: q, $options: "i" } },
       ];
@@ -41,11 +46,11 @@ exports.getAllProducts = async (req, res, next) => {
     if (sort === "price-low")  sortObj = { price: 1 };
     else if (sort === "price-high") sortObj = { price: -1 };
     else if (sort === "rating")     sortObj = { rating: -1, reviewCount: -1 };
-    else if (sort === "newest")     sortObj = { isNew: -1, createdAt: -1 };
+    else if (sort === "newest")     sortObj = { isNewCollection: -1, createdAt: -1 };
 
     const products = await Product.find(filter)
       .populate("category", "name")
-      .populate("seller", "username email")
+      .populate("createdBy", "username email")
       .sort(sortObj);
 
     res.status(200).json({ success: true, count: products.length, data: products });
@@ -59,7 +64,7 @@ exports.getProductById = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id)
       .populate("category", "name")
-      .populate("seller", "username email");
+      .populate("createdBy", "username email");
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
@@ -72,9 +77,23 @@ exports.getProductById = async (req, res, next) => {
 // POST /api/products  — create a new product
 exports.createProduct = async (req, res, next) => {
   try {
-    const product = await Product.create({ ...req.body, seller: req.user._id });
+    const isUserAdmin = req.user.role === "admin";
+    const status = isUserAdmin ? "approved" : "pending";
+    
+    console.log(`Saving product from ${req.user.role}:`, req.body.title);
+    
+    const product = await Product.create({ 
+      ...req.body, 
+      createdBy: req.user._id,
+      status: status,
+      // Admin items can be auto-tagged as featured/new if desired
+      isNewCollection: isUserAdmin ? true : req.body.isNewCollection
+    });
+    
+    console.log("Product saved successfully:", product._id, "Status:", product.status);
     res.status(201).json({ success: true, data: product });
   } catch (error) {
+    console.error("Error saving product:", error);
     next(error);
   }
 };
