@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const { isDbReady } = require("./config/db");
 
 const app = express();
 
@@ -17,19 +18,26 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
+const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
 const categoryRoutes = require("./routes/category.routes");
+const chapaRoutes = require("./routes/chapa.routes");
 const productRoutes = require("./routes/product.routes");
 const purchaseRoutes = require("./routes/purchase.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const aiRoutes = require("./routes/ai.routes");
 
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({
+    status: "ok",
+    database: isDbReady() ? "connected" : "degraded"
+  });
 });
 
+app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/chapa", chapaRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/dashboard", dashboardRoutes);

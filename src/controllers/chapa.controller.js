@@ -1,5 +1,3 @@
-const axios = require("axios");
-
 const CHAPA_BASE_URL = "https://api.chapa.co/v1";
 
 // POST /api/chapa/initialize
@@ -30,22 +28,35 @@ exports.initializePayment = async (req, res, next) => {
       },
     };
 
-    const response = await axios.post(`${CHAPA_BASE_URL}/transaction/initialize`, payload, {
+    if (!process.env.CHAPA_SECRET_KEY) {
+      return res.status(500).json({ success: false, message: "CHAPA_SECRET_KEY is not configured." });
+    }
+
+    const response = await fetch(`${CHAPA_BASE_URL}/transaction/initialize`, {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
         "Content-Type": "application/json",
       },
+      body: JSON.stringify(payload),
     });
 
-    const checkoutUrl = response.data?.data?.checkout_url;
+    const responseData = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return res.status(502).json({
+        success: false,
+        message: `Chapa error: ${responseData?.message || "Unable to initialize payment"}`
+      });
+    }
+
+    const checkoutUrl = responseData?.data?.checkout_url;
     if (!checkoutUrl) {
       return res.status(502).json({ success: false, message: "Chapa did not return a checkout URL" });
     }
 
     res.status(200).json({ success: true, checkoutUrl });
   } catch (error) {
-    const chapaMessage = error.response?.data?.message || error.message;
-    res.status(502).json({ success: false, message: `Chapa error: ${chapaMessage}` });
+    res.status(502).json({ success: false, message: `Chapa error: ${error.message}` });
   }
 };
 
@@ -55,16 +66,27 @@ exports.verifyPayment = async (req, res, next) => {
     const { txRef } = req.params;
     if (!txRef) return res.status(400).json({ success: false, message: "txRef is required" });
 
-    const response = await axios.get(`${CHAPA_BASE_URL}/transaction/verify/${encodeURIComponent(txRef)}`, {
+    if (!process.env.CHAPA_SECRET_KEY) {
+      return res.status(500).json({ success: false, message: "CHAPA_SECRET_KEY is not configured." });
+    }
+
+    const response = await fetch(`${CHAPA_BASE_URL}/transaction/verify/${encodeURIComponent(txRef)}`, {
       headers: {
         Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
       },
     });
 
-    res.status(200).json({ success: true, chapa: response.data });
+    const responseData = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return res.status(502).json({
+        success: false,
+        message: `Chapa verify error: ${responseData?.message || "Unable to verify payment"}`
+      });
+    }
+
+    res.status(200).json({ success: true, chapa: responseData });
   } catch (error) {
-    const chapaMessage = error.response?.data?.message || error.message;
-    res.status(502).json({ success: false, message: `Chapa verify error: ${chapaMessage}` });
+    res.status(502).json({ success: false, message: `Chapa verify error: ${error.message}` });
   }
 };
 
