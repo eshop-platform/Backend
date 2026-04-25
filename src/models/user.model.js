@@ -44,7 +44,34 @@ const userSchema = new mongoose.Schema({
     default: null,
     select: false,
   },
+  wishlist: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+    },
+  ],
+  cart: [
+    {
+      item: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+      selectedColor: {
+        type: String,
+        default: null,
+      },
+      selectedSize: {
+        type: String,
+        default: null,
+      },
+      quantity: {
+        type: Number,
+        default: 1,
+      },
+    },
+  ],
 }, { timestamps: true });
+
 
 // Hash password before saving
 userSchema.pre("save", async function () {

@@ -10,7 +10,16 @@ const createOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 const buildAuthPayload = (user, token) => ({
   success: true,
   token,
-  user: { id: user._id, username: user.username, email: user.email, role: user.role },
+  user: {
+    _id: user._id,
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    wishlist: user.wishlist || [],
+    cart: user.cart || [],
+    createdAt: user.createdAt
+  },
 });
 
 // POST /api/auth/register
@@ -128,7 +137,11 @@ exports.login = async (req, res, next) => {
 
     const token = signToken(user._id);
 
-    res.status(200).json(buildAuthPayload(user, token));
+    const populatedUser = await User.findById(user._id)
+      .populate("wishlist")
+      .populate("cart.item");
+
+    res.status(200).json(buildAuthPayload(populatedUser, token));
   } catch (error) {
     next(error);
   }
@@ -196,6 +209,13 @@ exports.resetPassword = async (req, res, next) => {
 };
 
 // GET /api/auth/me  — returns current user from token
-exports.getMe = async (req, res) => {
-  res.status(200).json({ success: true, user: req.user });
+exports.getMe = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate("wishlist")
+      .populate("cart.item");
+    res.status(200).json({ success: true, user });
+  } catch (error) {
+    next(error);
+  }
 };
