@@ -30,6 +30,20 @@ const userSchema = new mongoose.Schema({
     enum: ["active", "banned"],
     default: "active",
   },
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+  otp: {
+    type: String,
+    default: "",
+    select: false,
+  },
+  otpExpires: {
+    type: Date,
+    default: null,
+    select: false,
+  },
 }, { timestamps: true });
 
 // Hash password before saving
