@@ -34,7 +34,12 @@ const purchaseSchema = new mongoose.Schema({
     type: String,
     enum: ["pending", "completed", "rejected"],
     default: "pending",
-  }
+  },
+  txRef: {
+    type: String,
+    default: "",
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Purchase", purchaseSchema);
+

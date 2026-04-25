@@ -8,7 +8,7 @@ const reviewSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const productSchema = new mongoose.Schema({
-  name: {
+  title: {
     type: String,
     required: true,
     trim: true,
@@ -33,7 +33,7 @@ const productSchema = new mongoose.Schema({
     ref: "Category",
     required: true,
   },
-  seller: {
+  createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
@@ -54,7 +54,7 @@ const productSchema = new mongoose.Schema({
   colors: [{ type: String }],
   sizes: [{ type: String }],
   // Collection flags
-  isNew:       { type: Boolean, default: false },
+  isNewCollection: { type: Boolean, default: false },
   onSale:      { type: Boolean, default: false },
   bestSeller:  { type: Boolean, default: false },
   gender:      { type: String, enum: ["men", "women", "unisex", ""], default: "" },
@@ -62,6 +62,7 @@ const productSchema = new mongoose.Schema({
   rating:      { type: Number, default: 0 },
   reviewCount: { type: Number, default: 0 },
   tags:        [{ type: String }],
+  likes:       { type: Number, default: 0 },
   // Embedded reviews
   reviews:     [reviewSchema],
 }, { timestamps: true });
