@@ -134,8 +134,16 @@ exports.forgotPassword = async (req, res) => {
     user.otpExpires = Date.now() + 600000;
     await user.save();
 
-    await sendEmail(email, "Reset Password OTP", `Your code: ${rawOtp}`);
-    res.json({ message: "Reset OTP sent" });
+    await sendEmail(
+      email,
+      "Reset Your Password",
+      `<p>Hi <strong>${user.fullName}</strong>,</p>
+       <p>Your password reset code is:</p>
+       <h2 style="letter-spacing:4px">${rawOtp}</h2>
+       <p>This code expires in <strong>10 minutes</strong>. If you didn't request this, ignore this email.</p>`
+    );
+
+    res.json({ message: "Reset code sent to your email" });
   } catch (error) {
     res.status(500).json({ message: "Error sending email" });
   }
