@@ -8,54 +8,68 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// CORS — allow both frontend (5173) and admin (5174)
-const allowedOrigins = [
-  process.env.FRONTEND_URL || "http://localhost:5173",
+const parseOrigins = (value = "") =>
+  value
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+const allowedOrigins = new Set([
+  "https://frontend-one-smoky-28.vercel.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5173",
-  "http://127.0.0.1:5174"
-];
+  "http://127.0.0.1:5174",
+  ...parseOrigins(process.env.FRONTEND_URL),
+  ...parseOrigins(process.env.CORS_ORIGINS)
+]);
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error("Not allowed by CORS"));
+    // Allow non-browser requests without Origin (curl/Postman/health checks)
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.has(origin)) return cb(null, true);
+    return cb(new Error(`Origin not allowed by CORS: ${origin}`));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204
+};
+
+// CORS must be before routes
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 app.use(express.json());
 
 // Routes
-const authRoutes      = require("./routes/auth.routes");
-const userRoutes      = require("./routes/user.routes");
-const categoryRoutes  = require("./routes/category.routes");
-const productRoutes   = require("./routes/product.routes");
-const purchaseRoutes  = require("./routes/purchase.routes");
+const authRoutes = require("./routes/auth.routes");
+const userRoutes = require("./routes/user.routes");
+const categoryRoutes = require("./routes/category.routes");
+const productRoutes = require("./routes/product.routes");
+const purchaseRoutes = require("./routes/purchase.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
-const chapaRoutes     = require("./routes/chapa.routes");
-const aiRoutes        = require("./routes/ai.routes");
+const chapaRoutes = require("./routes/chapa.routes");
+const aiRoutes = require("./routes/ai.routes");
 
 app.get("/api/health", (req, res) => {
-  res.json({ 
+  res.json({
     status: "ok",
     database: isDbReady() ? "connected" : "degraded"
   });
 });
 
-app.use("/api/auth",       authRoutes);
-app.use("/api/users",      userRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/categories", categoryRoutes);
-app.use("/api/products",   productRoutes);
-app.use("/api/purchases",  purchaseRoutes);
-app.use("/api/dashboard",  dashboardRoutes);
-app.use("/api/chapa",      chapaRoutes);
-app.use("/api/ai",         aiRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/purchases", purchaseRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/chapa", chapaRoutes);
+app.use("/api/ai", aiRoutes);
 
-// error handler (always last)
+// Error handler must be last
 const errorHandler = require("./middlewares/errorHandler");
 app.use(errorHandler);
 

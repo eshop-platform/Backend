@@ -56,6 +56,9 @@ OPENAI_MODEL=gpt-4o-mini
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+FRONTEND_URL=https://frontend-one-smoky-28.vercel.app
+# Optional: comma-separated list for multiple origins
+CORS_ORIGINS=https://frontend-one-smoky-28.vercel.app,http://localhost:5173
 ```
 
 ### Running the Server
