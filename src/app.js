@@ -16,6 +16,7 @@ const parseOrigins = (value = "") =>
 
 const allowedOrigins = new Set([
   "https://frontend-one-smoky-28.vercel.app",
+  "https://ecommerce-team4.vercel.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5173",
