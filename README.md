@@ -59,6 +59,9 @@ CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 FRONTEND_URL=https://frontend-one-smoky-28.vercel.app
 # Optional: comma-separated list for multiple origins
 CORS_ORIGINS=https://frontend-one-smoky-28.vercel.app,http://localhost:5173
+# Optional: Vercel project slugs allowed as dynamic origins
+# Matches: https://<slug>.vercel.app and https://<slug>-<any>.vercel.app
+CORS_VERCEL_PROJECTS=ecommerce-team4,frontend
 ```
 
 ### Running the Server

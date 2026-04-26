@@ -8,28 +8,37 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-const parseOrigins = (value = "") =>
+const parseCsv = (value = "") =>
   value
     .split(",")
-    .map((origin) => origin.trim())
+    .map((item) => item.trim())
     .filter(Boolean);
 
 const allowedOrigins = new Set([
-  "https://frontend-one-smoky-28.vercel.app",
-  "https://ecommerce-team4.vercel.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
-  ...parseOrigins(process.env.FRONTEND_URL),
-  ...parseOrigins(process.env.CORS_ORIGINS)
+  ...parseCsv(process.env.FRONTEND_URL),
+  ...parseCsv(process.env.CORS_ORIGINS)
 ]);
+
+// Comma-separated project slugs, e.g. "ecommerce-team4,frontend"
+const vercelProjects = parseCsv(process.env.CORS_VERCEL_PROJECTS || "ecommerce-team4,frontend");
+
+const vercelProjectRegexes = vercelProjects.map(
+  (project) => new RegExp(`^https:\\/\\/${project}(?:-[a-z0-9-]+)?\\.vercel\\.app$`, "i")
+);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // Non-browser clients
+  if (allowedOrigins.has(origin)) return true;
+  return vercelProjectRegexes.some((pattern) => pattern.test(origin));
+};
 
 const corsOptions = {
   origin: (origin, cb) => {
-    // Allow non-browser requests without Origin (curl/Postman/health checks)
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.has(origin)) return cb(null, true);
+    if (isAllowedOrigin(origin)) return cb(null, true);
     return cb(new Error(`Origin not allowed by CORS: ${origin}`));
   },
   credentials: true,
