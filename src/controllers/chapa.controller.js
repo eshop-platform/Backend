@@ -2,49 +2,70 @@ const Purchase = require("../models/purchase.model");
 const Product = require("../models/product.model");
 
 const CHAPA_BASE_URL = "https://api.chapa.co/v1";
+const SUCCESS_STATUSES = new Set(["success", "successful", "completed"]);
+
+const parseChapaStatus = (responseData) =>
+  String(responseData?.data?.status || responseData?.status || "").toLowerCase();
+
+const verifyWithChapa = async (txRef) => {
+  const response = await fetch(`${CHAPA_BASE_URL}/transaction/verify/${encodeURIComponent(txRef)}`, {
+    headers: {
+      Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
+    },
+  });
+
+  const responseData = await response.json().catch(() => ({}));
+  return { response, responseData };
+};
 
 // POST /api/chapa/initialize
-exports.initializePayment = async (req, res, next) => {
+exports.initializePayment = async (req, res) => {
   try {
     const { txRef, amount, firstName, lastName, email, phone, productName, productId, products } = req.body;
 
     if (!txRef || !amount || !firstName || !lastName || !email) {
       return res.status(400).json({ success: false, message: "Missing required payment fields" });
     }
+    if (!req.user?._id) {
+      return res.status(401).json({ success: false, message: "Authentication required to initialize payment" });
+    }
 
-    // 1. Prepare products and commission
     let purchaseProducts = [];
     let totalCommission = 0;
 
-    if (products && Array.isArray(products)) {
-      // Cart checkout
+    if (products && Array.isArray(products) && products.length > 0) {
       for (const item of products) {
-        const p = await Product.findById(item.product || item.id);
-        const price = p ? p.price : item.price;
-        const qty = item.quantity || 1;
-        purchaseProducts.push({ product: p ? p._id : item.id, quantity: qty, price });
-        totalCommission += (price * qty) * 0.05;
+        const productIdToFind = item.product || item.id;
+        const p = productIdToFind ? await Product.findById(productIdToFind) : null;
+        const price = Number(p ? p.price : item.price || 0);
+        const qty = Number(item.quantity || 1);
+
+        if (productIdToFind) {
+          purchaseProducts.push({ product: p ? p._id : productIdToFind, quantity: qty, price });
+        }
+
+        totalCommission += price * qty * 0.05;
       }
     } else if (productId) {
-      // Single product buy
       const p = await Product.findById(productId);
-      const price = p ? p.price : amount;
+      const price = Number(p ? p.price : amount);
       purchaseProducts.push({ product: productId, quantity: 1, price });
       totalCommission = price * 0.05;
     }
 
-    // 2. Create a pending purchase record
-    await Purchase.create({
-      txRef,
-      buyer: req.user ? req.user.id : null,
-      products: purchaseProducts,
-      totalAmount: amount,
-      commission: totalCommission,
-      status: "pending",
-      customerInfo: { firstName, lastName, email, phone }
-    });
+    await Purchase.findOneAndUpdate(
+      { txRef },
+      {
+        txRef,
+        buyer: req.user._id,
+        products: purchaseProducts,
+        totalAmount: Number(amount),
+        commission: Number(totalCommission.toFixed(2)),
+        status: "pending",
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
-    // 3. Prepare Chapa payload
     const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
     const returnUrl = `${FRONTEND_URL}/cart?tx_ref=${encodeURIComponent(txRef)}&payment=success`;
 
@@ -81,7 +102,7 @@ exports.initializePayment = async (req, res, next) => {
     if (!response.ok) {
       return res.status(502).json({
         success: false,
-        message: `Chapa error: ${responseData?.message || "Unable to initialize payment"}`
+        message: `Chapa error: ${responseData?.message || "Unable to initialize payment"}`,
       });
     }
 
@@ -90,15 +111,15 @@ exports.initializePayment = async (req, res, next) => {
       return res.status(502).json({ success: false, message: "Chapa did not return a checkout URL" });
     }
 
-    res.status(200).json({ success: true, checkoutUrl });
+    return res.status(200).json({ success: true, checkoutUrl });
   } catch (error) {
     console.error("Chapa Initialization Error:", error.message);
-    res.status(502).json({ success: false, message: `Chapa error: ${error.message}` });
+    return res.status(502).json({ success: false, message: `Chapa error: ${error.message}` });
   }
 };
 
 // GET /api/chapa/verify/:txRef
-exports.verifyPayment = async (req, res, next) => {
+exports.verifyPayment = async (req, res) => {
   try {
     const { txRef } = req.params;
     if (!txRef) return res.status(400).json({ success: false, message: "txRef is required" });
@@ -107,28 +128,65 @@ exports.verifyPayment = async (req, res, next) => {
       return res.status(500).json({ success: false, message: "CHAPA_SECRET_KEY is not configured." });
     }
 
-    const response = await fetch(`${CHAPA_BASE_URL}/transaction/verify/${encodeURIComponent(txRef)}`, {
-      headers: {
-        Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`,
-      },
-    });
-
-    const responseData = await response.json().catch(() => ({}));
+    const { response, responseData } = await verifyWithChapa(txRef);
     if (!response.ok) {
       return res.status(502).json({
         success: false,
-        message: `Chapa verify error: ${responseData?.message || "Unable to verify payment"}`
+        message: `Chapa verify error: ${responseData?.message || "Unable to verify payment"}`,
       });
     }
 
-    res.status(200).json({ success: true, chapa: responseData });
+    const status = parseChapaStatus(responseData);
+    const isSuccess = SUCCESS_STATUSES.has(status);
+
+    const purchase = await Purchase.findOneAndUpdate(
+      { txRef },
+      { status: isSuccess ? "completed" : "pending" },
+      { new: true }
+    );
+
+    return res.status(200).json({ success: true, chapa: responseData, purchase });
   } catch (error) {
-    res.status(502).json({ success: false, message: `Chapa verify error: ${error.message}` });
+    return res.status(502).json({ success: false, message: `Chapa verify error: ${error.message}` });
   }
 };
 
-// POST /api/chapa/webhook  — Chapa calls this after payment
+// POST /api/chapa/webhook
 exports.webhook = async (req, res) => {
-  // Acknowledge immediately
-  res.status(200).json({ received: true });
+  try {
+    if (!process.env.CHAPA_SECRET_KEY) {
+      return res.status(500).json({ success: false, message: "CHAPA_SECRET_KEY is not configured." });
+    }
+
+    const txRef =
+      req.body?.tx_ref ||
+      req.body?.trx_ref ||
+      req.body?.reference ||
+      req.body?.data?.tx_ref ||
+      req.body?.data?.trx_ref;
+
+    if (!txRef) {
+      return res.status(400).json({ success: false, message: "tx_ref not found in webhook payload" });
+    }
+
+    const { response, responseData } = await verifyWithChapa(txRef);
+    if (!response.ok) {
+      return res.status(502).json({
+        success: false,
+        message: `Chapa webhook verify error: ${responseData?.message || "Unable to verify payment"}`,
+      });
+    }
+
+    const status = parseChapaStatus(responseData);
+    const isSuccess = SUCCESS_STATUSES.has(status);
+
+    await Purchase.findOneAndUpdate(
+      { txRef },
+      { status: isSuccess ? "completed" : "pending" }
+    );
+
+    return res.status(200).json({ success: true, received: true, txRef, status });
+  } catch (error) {
+    return res.status(502).json({ success: false, message: `Webhook error: ${error.message}` });
+  }
 };
